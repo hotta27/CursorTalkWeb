@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFLoader, type GLTFParser } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
 import type { CharacterState } from "../shared/types";
 
@@ -38,7 +38,7 @@ export class VrmScene {
 
   async load(modelPath: string): Promise<void> {
     const loader = new GLTFLoader();
-    loader.register((parser) => new VRMLoaderPlugin(parser));
+    loader.register((parser: GLTFParser) => new VRMLoaderPlugin(parser));
     const gltf = await loader.loadAsync(modelPath);
     this.vrm = gltf.userData.vrm as VRM;
     this.vrm.scene.rotation.y = Math.PI;

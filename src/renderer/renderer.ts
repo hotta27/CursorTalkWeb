@@ -1,16 +1,20 @@
 import type { CharacterState, ScheduleItem } from "../shared/types";
-import { VrmScene } from "./vrmScene";
+import { VrmScene } from "./vrmScene.js";
 
 const timelineEl = document.getElementById("timeline") as HTMLUListElement;
 const refreshButton = document.getElementById("refreshButton") as HTMLButtonElement;
 const errorEl = document.getElementById("error") as HTMLDivElement;
 const stateEl = document.getElementById("characterState") as HTMLDivElement;
 const vrmContainer = document.getElementById("vrmCanvas") as HTMLDivElement;
+const vrmFallbackEl = document.getElementById("vrmFallback") as HTMLDivElement;
 
 const scene = new VrmScene(vrmContainer);
 scene
   .load("./assets/avatar.vrm")
-  .catch(() => setError("VRMモデルの読み込みに失敗しました。assets/avatar.vrm を配置してください。"));
+  .catch((error) => {
+    console.error("[renderer] VRM load failed", error);
+    vrmFallbackEl.classList.add("show");
+  });
 
 function setError(text: string): void {
   errorEl.textContent = text;
@@ -29,7 +33,7 @@ function formatRange(item: ScheduleItem): string {
 function renderSchedules(items: ScheduleItem[]): void {
   timelineEl.innerHTML = "";
   if (items.length === 0) {
-    timelineEl.innerHTML = "<li>予定はありません。</li>";
+    timelineEl.innerHTML = "<li>スケジュールがありません</li>";
     return;
   }
 
@@ -57,7 +61,9 @@ function applyState(state: CharacterState): void {
 
 async function boot(): Promise<void> {
   try {
+    console.log("[renderer] boot: getTodaySchedules request");
     const items = await window.api.getTodaySchedules();
+    console.log(`[renderer] boot: getTodaySchedules response (${items.length} items)`);
     renderSchedules(items);
   } catch (error) {
     console.error(error);
@@ -66,9 +72,12 @@ async function boot(): Promise<void> {
 }
 
 refreshButton.addEventListener("click", async () => {
+  console.log("[renderer] refresh button clicked");
   setError("");
   try {
+    console.log("[renderer] refresh: schedule API request");
     const items = await window.api.refreshSchedules();
+    console.log(`[renderer] refresh: schedule API response (${items.length} items)`);
     renderSchedules(items);
   } catch (error) {
     console.error(error);

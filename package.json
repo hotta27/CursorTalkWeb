@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.14",
+    "@types/three": "^0.177.0",
     "electron": "^35.1.5",
     "typescript": "^5.8.3"
   }

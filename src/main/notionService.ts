@@ -54,14 +54,14 @@ export async function fetchTodaySchedules(): Promise<ScheduleItem[]> {
   const response = await notion.databases.query({
     database_id: notionDatabaseId,
     filter: {
-      property: "日付",
-      date: {
-        equals: dateISO,
-      },
+      property: "ステータス",
+      select: {
+        equals: "進行中"
+      }
     },
     sorts: [
       {
-        property: "開始時間",
+        property: "日付",
         direction: "ascending",
       },
     ],

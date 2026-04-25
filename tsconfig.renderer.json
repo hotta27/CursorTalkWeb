@@ -9,5 +9,5 @@
     "outDir": "dist",
     "rootDir": "src"
   },
-  "include": ["src/renderer/**/*.ts", "src/shared/**/*.ts"]
+  "include": ["src/renderer/**/*.ts", "src/renderer/**/*.d.ts", "src/shared/**/*.ts"]
 }
