@@ -1,3 +1,5 @@
+/// <reference path="./global.d.ts" />
+
 import type { CharacterState, ScheduleItem } from "../shared/types";
 import { VrmScene } from "./vrmScene.js";
 

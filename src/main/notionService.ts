@@ -15,7 +15,7 @@ function toISODate(date: Date): string {
 }
 
 function readTitle(page: PageObjectResponse): string {
-  const raw = page.properties["タイトル"];
+  const raw = page.properties["名前"];
   if (!raw || raw.type !== "title") {
     return "無題";
   }
@@ -24,13 +24,23 @@ function readTitle(page: PageObjectResponse): string {
 
 function readDate(
   page: PageObjectResponse,
-  propName: "開始時間" | "終了時間",
+  propName: string,
+  which: "start" | "end",
 ): string {
   const raw = page.properties[propName];
-  if (!raw || raw.type !== "date" || !raw.date?.start) {
-    return "";
+  if (which === "start") {
+    if (!raw || raw.type !== "date" || !raw.date?.start) {
+      return "";
+    }
+    return raw.date.start;
   }
-  return raw.date.start;
+  if (which === "end") {
+    if (!raw || raw.type !== "date" || !raw.date?.end) {
+      return "";
+    }
+    return raw.date.end;
+  }
+  return "";
 }
 
 function readUrl(page: PageObjectResponse): string {
@@ -72,8 +82,8 @@ export async function fetchTodaySchedules(): Promise<ScheduleItem[]> {
     .map((page) => ({
       id: page.id,
       title: readTitle(page),
-      startAt: readDate(page, "開始時間"),
-      endAt: readDate(page, "終了時間"),
+      startAt: readDate(page, "日付", "start"),
+      endAt: readDate(page, "日付", "end"),
       notionUrl: readUrl(page),
     }))
     .filter((i) => Boolean(i.startAt && i.endAt));
