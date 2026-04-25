@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NotificationAI</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        font-family: "Segoe UI", sans-serif;
+        background: #12141a;
+        color: #f2f3f6;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr 420px;
+        height: 100vh;
+      }
+      .timeline {
+        padding: 20px;
+        overflow-y: auto;
+      }
+      .head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      button {
+        background: #2962ff;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+      .item {
+        background: #1c1f29;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        border: 1px solid transparent;
+      }
+      .item:hover {
+        border-color: #2962ff;
+      }
+      .title {
+        font-weight: 600;
+      }
+      .time {
+        color: #c7c9d3;
+        margin-top: 4px;
+        font-size: 13px;
+      }
+      .vrm-panel {
+        border-left: 1px solid #2f3445;
+        position: relative;
+      }
+      #vrmCanvas {
+        width: 100%;
+        height: 100%;
+      }
+      .state {
+        position: absolute;
+        left: 12px;
+        bottom: 12px;
+        background: rgba(0, 0, 0, 0.4);
+        padding: 6px 10px;
+        border-radius: 999px;
+        font-size: 12px;
+      }
+      .error {
+        color: #ff9fa8;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="layout">
+      <section class="timeline">
+        <div class="head">
+          <h2>今日のスケジュール</h2>
+          <button id="refreshButton">更新</button>
+        </div>
+        <div id="error" class="error"></div>
+        <ul id="timeline"></ul>
+      </section>
+      <section class="vrm-panel">
+        <div id="vrmCanvas"></div>
+        <div id="characterState" class="state">state: idle</div>
+      </section>
+    </main>
+    <script type="module" src="./renderer.js"></script>
+  </body>
+  </html>

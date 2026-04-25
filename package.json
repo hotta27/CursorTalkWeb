@@ -1,0 +1,23 @@
+{
+  "name": "notification-ai",
+  "version": "0.1.0",
+  "description": "Notion schedule notifier with VRM character",
+  "main": "dist/main/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.main.json && tsc -p tsconfig.renderer.json && node scripts/copy-assets.mjs",
+    "dev": "npm run build && electron .",
+    "start": "electron .",
+    "check": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit"
+  },
+  "dependencies": {
+    "@notionhq/client": "^2.2.15",
+    "@pixiv/three-vrm": "^3.3.6",
+    "dotenv": "^16.5.0",
+    "three": "^0.177.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.14",
+    "electron": "^35.1.5",
+    "typescript": "^5.8.3"
+  }
+}
