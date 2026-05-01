@@ -1,0 +1,2 @@
+`avatar.vrm` をこの `public` ディレクトリに配置してください。
+Next.js では `/avatar.vrm` として読み込まれます。

@@ -1,18 +1,10 @@
 import { Client } from "@notionhq/client";
 import type { PageObjectResponse } from "@notionhq/client/build/src/api-endpoints";
-import type { ScheduleItem } from "../shared/types";
+import type { ScheduleItem } from "@/lib/types";
 
 const notionToken = process.env.NOTION_API_KEY ?? "";
 const notionDatabaseId = process.env.NOTION_DATABASE_ID ?? "";
-
 const notion = notionToken ? new Client({ auth: notionToken }) : null;
-
-function toISODate(date: Date): string {
-  const y = date.getFullYear();
-  const m = `${date.getMonth() + 1}`.padStart(2, "0");
-  const d = `${date.getDate()}`.padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
 
 function readTitle(page: PageObjectResponse): string {
   const raw = page.properties["名前"];
@@ -22,25 +14,12 @@ function readTitle(page: PageObjectResponse): string {
   return raw.title.map((t) => t.plain_text).join("") || "無題";
 }
 
-function readDate(
-  page: PageObjectResponse,
-  propName: string,
-  which: "start" | "end",
-): string {
-  const raw = page.properties[propName];
-  if (which === "start") {
-    if (!raw || raw.type !== "date" || !raw.date?.start) {
-      return "";
-    }
-    return raw.date.start;
+function readDate(page: PageObjectResponse, which: "start" | "end"): string {
+  const raw = page.properties["日付"];
+  if (!raw || raw.type !== "date" || !raw.date) {
+    return "";
   }
-  if (which === "end") {
-    if (!raw || raw.type !== "date" || !raw.date?.end) {
-      return "";
-    }
-    return raw.date.end;
-  }
-  return "";
+  return which === "start" ? (raw.date.start ?? "") : (raw.date.end ?? "");
 }
 
 function readUrl(page: PageObjectResponse): string {
@@ -53,21 +32,16 @@ function readUrl(page: PageObjectResponse): string {
 
 export async function fetchTodaySchedules(): Promise<ScheduleItem[]> {
   if (!notion || !notionDatabaseId) {
-    throw new Error(
-      "NOTION_API_KEY または NOTION_DATABASE_ID が設定されていません。",
-    );
+    throw new Error("NOTION_API_KEY または NOTION_DATABASE_ID が設定されていません。");
   }
-
-  const today = new Date();
-  const dateISO = toISODate(today);
 
   const response = await notion.databases.query({
     database_id: notionDatabaseId,
     filter: {
       property: "ステータス",
       select: {
-        equals: "進行中"
-      }
+        equals: "進行中",
+      },
     },
     sorts: [
       {
@@ -82,9 +56,9 @@ export async function fetchTodaySchedules(): Promise<ScheduleItem[]> {
     .map((page) => ({
       id: page.id,
       title: readTitle(page),
-      startAt: readDate(page, "日付", "start"),
-      endAt: readDate(page, "日付", "end"),
+      startAt: readDate(page, "start"),
+      endAt: readDate(page, "end"),
       notionUrl: readUrl(page),
     }))
-    .filter((i) => Boolean(i.startAt && i.endAt));
+    .filter((item) => Boolean(item.startAt && item.endAt));
 }
