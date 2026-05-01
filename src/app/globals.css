@@ -197,12 +197,27 @@ body {
 }
 
 .vrm-wrapper {
+  position: relative;
   width: 100%;
   height: calc(100vh - 48px);
   border: 1px solid #334155;
   border-radius: 12px;
   overflow: hidden;
   background: radial-gradient(circle at center, #1e293b 0%, #0f172a 65%);
+}
+
+.vrm-reset-button {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  border: 1px solid #334155;
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
 }
 
 .vrm-fallback {

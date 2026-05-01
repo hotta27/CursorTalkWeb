@@ -10,9 +10,10 @@ import type { CharacterState } from "@/lib/types";
 interface VrmAvatarProps {
   modelPath: string;
   state: CharacterState;
+  onFitted?: () => void;
 }
 
-export function VrmAvatar({ modelPath, state }: VrmAvatarProps) {
+export function VrmAvatar({ modelPath, state, onFitted }: VrmAvatarProps) {
   const [until, setUntil] = useState(0);
   const [currentState, setCurrentState] = useState<CharacterState>("idle");
   const vrmRef = useRef<VRM | null>(null);
@@ -58,7 +59,8 @@ export function VrmAvatar({ modelPath, state }: VrmAvatarProps) {
     }
 
     vrmRef.current = vrm;
-  }, [camera, gltf]);
+    onFitted?.();
+  }, [camera, gltf, onFitted]);
 
   useEffect(() => {
     setCurrentState(state);
