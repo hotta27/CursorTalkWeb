@@ -13,6 +13,7 @@ interface AvatarCanvasProps {
 
 export function AvatarCanvas({ state }: AvatarCanvasProps) {
   const [modelReady, setModelReady] = useState<boolean | null>(null);
+  const [showDebug, setShowDebug] = useState(true);
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
 
   useEffect(() => {
@@ -54,6 +55,15 @@ export function AvatarCanvas({ state }: AvatarCanvasProps) {
       >
         位置リセット
       </button>
+      <button
+        type="button"
+        className="vrm-debug-button"
+        onClick={() => {
+          setShowDebug((prev) => !prev);
+        }}
+      >
+        {showDebug ? "枠線/原点 OFF" : "枠線/原点 ON"}
+      </button>
       <Canvas camera={{ fov: 35, near: 0.1, far: 100, position: [0, 1.35, 2.2] }}>
         <directionalLight intensity={1.2} position={[1, 2, 3]} />
         <ambientLight intensity={0.5} />
@@ -62,6 +72,7 @@ export function AvatarCanvas({ state }: AvatarCanvasProps) {
           <VrmAvatar
             modelPath="/avatar.vrm"
             state={state}
+            showDebug={showDebug}
             onFitted={() => {
               requestAnimationFrame(() => {
                 controlsRef.current?.update();

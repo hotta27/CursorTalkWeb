@@ -220,6 +220,20 @@ body {
   backdrop-filter: blur(4px);
 }
 
+.vrm-debug-button {
+  position: absolute;
+  top: 56px;
+  right: 12px;
+  z-index: 10;
+  border: 1px solid #334155;
+  background: rgba(15, 23, 42, 0.75);
+  color: #e2e8f0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+
 .vrm-fallback {
   display: grid;
   place-content: center;

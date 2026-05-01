@@ -11,11 +11,13 @@ interface VrmAvatarProps {
   modelPath: string;
   state: CharacterState;
   onFitted?: () => void;
+  showDebug?: boolean;
 }
 
-export function VrmAvatar({ modelPath, state, onFitted }: VrmAvatarProps) {
+export function VrmAvatar({ modelPath, state, onFitted, showDebug = true }: VrmAvatarProps) {
   const [until, setUntil] = useState(0);
   const [currentState, setCurrentState] = useState<CharacterState>("idle");
+  const [boxHelper, setBoxHelper] = useState<THREE.BoxHelper | null>(null);
   const vrmRef = useRef<VRM | null>(null);
   const { camera } = useThree();
 
@@ -58,8 +60,13 @@ export function VrmAvatar({ modelPath, state, onFitted }: VrmAvatarProps) {
       camera.updateProjectionMatrix();
     }
 
+    const helper = new THREE.BoxHelper(vrm.scene, 0x22d3ee);
+    setBoxHelper(helper);
     vrmRef.current = vrm;
     onFitted?.();
+    return () => {
+      setBoxHelper(null);
+    };
   }, [camera, gltf, onFitted]);
 
   useEffect(() => {
@@ -87,7 +94,21 @@ export function VrmAvatar({ modelPath, state, onFitted }: VrmAvatarProps) {
       expression.setValue("aa", activeState === "talk" ? 0.6 : 0.0);
       expression.setValue("happy", activeState === "notify" ? 0.8 : 0.1);
     }
+
+    boxHelper?.update();
   });
 
-  return <primitive object={gltf.scene} />;
+  return (
+    <>
+      <primitive object={gltf.scene} />
+      {showDebug && boxHelper ? <primitive object={boxHelper} /> : null}
+      {showDebug ? <axesHelper args={[0.35]} /> : null}
+      {showDebug ? (
+        <mesh position={[0, 0, 0]}>
+          <sphereGeometry args={[0.03, 16, 16]} />
+          <meshBasicMaterial color="#ef4444" />
+        </mesh>
+      ) : null}
+    </>
+  );
 }
