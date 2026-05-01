@@ -49,20 +49,24 @@ export function useCharacterState(items: ScheduleItem[]): UseCharacterStateResul
           if (!next[item.id]) {
             next[item.id] = { start: false, end: false };
           }
-          if (!next[item.id].start && Math.abs(now - item.start) <= GRACE_MS) {
+          if (!next[item.id].start && now >= item.start && now - item.start <= GRACE_MS) {
             next[item.id].start = true;
             setState("notify");
             const message = `${item.title} が開始です`;
-            showNotification("予定開始", message);
-            setEvents((prev) => [`予定開始: ${message}`, ...prev].slice(0, 5));
+            void showNotification("予定開始", message).then((shown) => {
+              const suffix = shown ? "" : " (通知未許可/非対応)";
+              setEvents((prev) => [`予定開始: ${message}${suffix}`, ...prev].slice(0, 5));
+            });
             shouldNotify = true;
           }
-          if (!next[item.id].end && Math.abs(now - item.end) <= GRACE_MS) {
+          if (!next[item.id].end && now >= item.end && now - item.end <= GRACE_MS) {
             next[item.id].end = true;
             setState("talk");
             const message = `${item.title} が終了です`;
-            showNotification("予定終了", message);
-            setEvents((prev) => [`予定終了: ${message}`, ...prev].slice(0, 5));
+            void showNotification("予定終了", message).then((shown) => {
+              const suffix = shown ? "" : " (通知未許可/非対応)";
+              setEvents((prev) => [`予定終了: ${message}${suffix}`, ...prev].slice(0, 5));
+            });
             shouldNotify = true;
           }
         }

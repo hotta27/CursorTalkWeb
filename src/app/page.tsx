@@ -42,6 +42,9 @@ export default function Home() {
           <span>state: {state}</span>
           <span>notification: {permission}</span>
         </div>
+        {permission !== "granted" ? (
+          <div className="error-box">通知を有効にするには「通知を許可」をクリックしてください。</div>
+        ) : null}
 
         {error && <div className="error-box">{error}</div>}
         {loading ? <div className="timeline-empty">読み込み中...</div> : <Timeline items={items} />}

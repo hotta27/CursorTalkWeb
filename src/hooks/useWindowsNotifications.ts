@@ -33,31 +33,32 @@ export function useWindowsNotifications() {
     return result;
   }, []);
 
-  const showNotification = useCallback(
-    (title: string, body: string) => {
-      void (async () => {
-        const result = await ensurePermission();
-        if (result !== "granted") {
-          return;
-        }
+  const showNotification = useCallback(async (title: string, body: string): Promise<boolean> => {
+    if (typeof window === "undefined" || !("Notification" in window)) {
+      return false;
+    }
+    if (Notification.permission !== "granted") {
+      return false;
+    }
 
-        if ("serviceWorker" in navigator) {
-          const registration = await navigator.serviceWorker.getRegistration();
-          if (registration) {
-            await registration.showNotification(title, {
-              body,
-              tag: `${title}-${Date.now()}`,
-            });
-            return;
-          }
+    try {
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          await registration.showNotification(title, {
+            body,
+            tag: `${title}-${Date.now()}`,
+          });
+          return true;
         }
-        new Notification(title, { body });
-      })().catch((error) => {
-        console.error("show notification failed", error);
-      });
-    },
-    [ensurePermission],
-  );
+      }
+      new Notification(title, { body });
+      return true;
+    } catch (error) {
+      console.error("show notification failed", error);
+      return false;
+    }
+  }, []);
 
   return {
     permission,
