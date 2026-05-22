@@ -33,9 +33,16 @@ Notionの当日予定を表示し、開始・終了時にWindows通知を行うN
 ユーザーが Windows にログオンしたときに、このリポジトリ直下で `npm run dev`（Next.js 開発サーバー）を起動するよう、**タスク スケジューラ**に登録できます。
 
 - **登録スクリプト**: [`scripts/register-windows-logon-task.ps1`](scripts/register-windows-logon-task.ps1) … タスクを作成・更新します（同名タスクがあれば置き換え）。
-- **実行バッチ**: [`scripts/dev-at-login.bat`](scripts/dev-at-login.bat) … リポジトリルートへ移動して `npm run dev`。タスク実行時は PATH が足りないことがあるため、一般的な Node / nvm-windows のパスも補強しています。
+- **実行バッチ**: [`scripts/dev-at-login.bat`](scripts/dev-at-login.bat) … リポジトリルートへ移動して `npm run dev`。`Program Files\nodejs\npm.cmd` を優先し、実行内容はログファイルにも追記します。
 - **タスク名**: `NotificationAI npm run dev`
-- **動き**: ログオン時に `cmd.exe /k` で上記バッチを実行するため、コンソールウィンドウが開いたままログを確認できます。
+- **動き**: ログオン後 **約 45 秒**（タスクの遅延）＋バッチ内 5 秒待機のあと、`cmd.exe /k call` で上記バッチを実行。コンソールウィンドウが開いたままログを確認できます。
+- **ログファイル**: `%LOCALAPPDATA%\NotificationAI\dev-at-login.log`（例: `C:\Users\<ユーザー>\AppData\Local\NotificationAI\dev-at-login.log`）
+
+### うまく起動しないとき（`LastTaskResult = 3221225786`）
+
+タスクは動いたが `npm run dev` が常駐しない場合、スケジューラの終了コードが **`3221225786`（16進 `0xC000013A`）** になっていることがあります。これはコンソールがログオン直後に終了した（Ctrl+C 相当）状態で、**cmd は開くが Next が立ち上がらない**症状と一致します。
+
+対策として登録スクリプト側で **ログオン遅延 45 秒**、`cmd /k call`、npm のフルパス優先、ログ出力、ポート 3000 の重複チェックを入れています。**スクリプトを更新したあとは必ず再登録**してください（下記コマンド）。
 
 ### 登録・削除（管理者権限は不要）
 
@@ -44,6 +51,8 @@ Notionの当日予定を表示し、開始・終了時にWindows通知を行うN
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\register-windows-logon-task.ps1
 ```
+
+`scripts\` を変更した場合も、上記を再度実行してタスク定義を更新してください。
 
 タスクを削除するとき:
 
@@ -65,6 +74,14 @@ Get-ScheduledTask -TaskName "NotificationAI npm run dev" | Select-Object TaskNam
 
 ```powershell
 Get-ScheduledTaskInfo -TaskName "NotificationAI npm run dev"
+```
+
+`LastTaskResult` が `0` または `267009`（実行中扱い）なら成功寄り、`3221225786` なら途中終了です。
+
+バッチの実行ログ（日時・使用した npm・終了コード）:
+
+```powershell
+Get-Content "$env:LOCALAPPDATA\NotificationAI\dev-at-login.log" -Tail 30
 ```
 
 タスクの詳細（実行コマンド・開始フォルダなど）を CMD で見る場合:
