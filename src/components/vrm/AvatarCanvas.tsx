@@ -1,20 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
-import { OrbitControls } from "@react-three/drei";
-import type { OrbitControls as OrbitControlsImpl } from "three-stdlib";
-import type { CharacterState } from "@/lib/types";
-import { VrmAvatar } from "@/components/vrm/VrmAvatar";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { GLTFLoader, type GLTFParser } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
 
-interface AvatarCanvasProps {
-  state: CharacterState;
-}
-
-export function AvatarCanvas({ state }: AvatarCanvasProps) {
+export function AvatarCanvas() {
   const [modelReady, setModelReady] = useState<boolean | null>(null);
-  const [showDebug, setShowDebug] = useState(true);
-  const controlsRef = useRef<OrbitControlsImpl | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -44,44 +38,126 @@ export function AvatarCanvas({ state }: AvatarCanvasProps) {
     );
   }
 
+  useEffect(() => {
+    if (!modelReady) {
+      return;
+    }
+    const container = containerRef.current;
+    if (!container) {
+      return;
+    }
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color("#0f172a");
+
+    const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 100);
+    camera.position.set(0, 1.25, 2.3);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.enablePan = true;
+    controls.target.set(0, 1.0, 0);
+    controls.update();
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x0b1120, 0.8);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+    dirLight.position.set(1, 2, 3);
+    scene.add(hemiLight, dirLight);
+
+    let disposed = false;
+    let vrm: VRM | null = null;
+    const clock = new THREE.Clock();
+
+    const resize = () => {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      if (width <= 0 || height <= 0) {
+        return;
+      }
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height, false);
+    };
+    resize();
+
+    const loader = new GLTFLoader();
+    loader.register((parser: GLTFParser) => new VRMLoaderPlugin(parser));
+    loader.load(
+      "/avatar.vrm",
+      (gltf) => {
+        if (disposed) {
+          return;
+        }
+        const loadedVrm = gltf.userData.vrm as VRM | undefined;
+        if (!loadedVrm) {
+          setModelReady(false);
+          return;
+        }
+        vrm = loadedVrm;
+
+        vrm.scene.updateMatrixWorld(true);
+        const box = new THREE.Box3().setFromObject(vrm.scene);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        vrm.scene.position.x -= center.x;
+        vrm.scene.position.z -= center.z;
+        vrm.scene.position.y -= box.min.y;
+        vrm.scene.rotation.y = Math.PI;
+        scene.add(vrm.scene);
+
+        const maxSize = Math.max(size.x, size.y, size.z, 1);
+        const fovRad = (camera.fov * Math.PI) / 180;
+        const distance = (maxSize * 0.9) / Math.tan(fovRad / 2);
+        camera.position.set(0, size.y * 0.55, distance * 1.2);
+        camera.far = distance * 8;
+        camera.updateProjectionMatrix();
+        controls.target.set(0, size.y * 0.5, 0);
+        controls.update();
+      },
+      undefined,
+      () => {
+        if (!disposed) {
+          setModelReady(false);
+        }
+      },
+    );
+
+    const onResize = () => resize();
+    window.addEventListener("resize", onResize);
+
+    const animate = () => {
+      if (disposed) {
+        return;
+      }
+      const delta = clock.getDelta();
+      vrm?.update(delta);
+      controls.update();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      disposed = true;
+      window.removeEventListener("resize", onResize);
+      controls.dispose();
+      renderer.dispose();
+      scene.clear();
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
+      }
+    };
+  }, [modelReady]);
+
   return (
     <div className="vrm-wrapper">
-      <button
-        type="button"
-        className="vrm-reset-button"
-        onClick={() => {
-          controlsRef.current?.reset();
-        }}
-      >
-        位置リセット
-      </button>
-      <button
-        type="button"
-        className="vrm-debug-button"
-        onClick={() => {
-          setShowDebug((prev) => !prev);
-        }}
-      >
-        {showDebug ? "枠線/原点 OFF" : "枠線/原点 ON"}
-      </button>
-      <Canvas camera={{ fov: 35, near: 0.1, far: 100, position: [0, 1.35, 2.2] }}>
-        <directionalLight intensity={1.2} position={[1, 2, 3]} />
-        <ambientLight intensity={0.5} />
-        <OrbitControls ref={controlsRef} enablePan={false} enableZoom enableRotate />
-        {modelReady ? (
-          <VrmAvatar
-            modelPath="/avatar.vrm"
-            state={state}
-            showDebug={showDebug}
-            onFitted={() => {
-              requestAnimationFrame(() => {
-                controlsRef.current?.update();
-                controlsRef.current?.saveState();
-              });
-            }}
-          />
-        ) : null}
-      </Canvas>
+      <div className="vrm-overlay">ドラッグ: 回転 / 右ドラッグ: パン / ホイール: ズーム</div>
+      <div ref={containerRef} className="vrm-canvas-host" />
     </div>
   );
 }

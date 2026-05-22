@@ -64,7 +64,7 @@ export default function Home() {
       </section>
 
       <section className="right-panel">
-        <AvatarCanvas state={state} />
+        <AvatarCanvas />
       </section>
     </main>
   );
