@@ -6,6 +6,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader, type GLTFParser } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
 import type { CharacterState } from "@/lib/types";
+import {
+  loadStoredCameraView,
+  saveStoredCameraView,
+  storedViewToVectors,
+  vectorsToStoredView,
+} from "@/lib/cameraViewStorage";
 
 interface AvatarCanvasProps {
   characterState?: CharacterState;
@@ -18,6 +24,7 @@ interface ClipActionEntry {
 
 interface SceneApi {
   resetView: () => void;
+  saveView: () => void;
   playClip: (name: string, loop?: boolean) => void;
   playClipByHints: (hints: string[]) => void;
   stopAll: () => void;
@@ -98,18 +105,60 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
     const clipActions: ClipActionEntry[] = [];
     const clock = new THREE.Clock();
 
-    let savedCameraPosition = new THREE.Vector3();
-    let savedTarget = new THREE.Vector3();
+    let defaultCameraPosition = new THREE.Vector3();
+    let defaultTarget = new THREE.Vector3();
 
-    const saveInitialView = () => {
-      savedCameraPosition = camera.position.clone();
-      savedTarget = controls.target.clone();
+    const applyView = (cam: THREE.Vector3, target: THREE.Vector3) => {
+      camera.position.copy(cam);
+      controls.target.copy(target);
+      controls.update();
+    };
+
+    const applyStoredOrVectors = (
+      stored: ReturnType<typeof loadStoredCameraView>,
+      fallbackCam: THREE.Vector3,
+      fallbackTarget: THREE.Vector3,
+    ) => {
+      if (stored) {
+        const { camera: c, target: t } = storedViewToVectors(stored);
+        applyView(new THREE.Vector3(c.x, c.y, c.z), new THREE.Vector3(t.x, t.y, t.z));
+        return;
+      }
+      applyView(fallbackCam, fallbackTarget);
+    };
+
+    const setDefaultView = (cam: THREE.Vector3, target: THREE.Vector3) => {
+      defaultCameraPosition = cam.clone();
+      defaultTarget = target.clone();
+    };
+
+    const getResetView = (): { camera: THREE.Vector3; target: THREE.Vector3 } => {
+      const stored = loadStoredCameraView();
+      if (stored) {
+        const { camera: c, target: t } = storedViewToVectors(stored);
+        return {
+          camera: new THREE.Vector3(c.x, c.y, c.z),
+          target: new THREE.Vector3(t.x, t.y, t.z),
+        };
+      }
+      return {
+        camera: defaultCameraPosition.clone(),
+        target: defaultTarget.clone(),
+      };
     };
 
     const resetView = () => {
-      camera.position.copy(savedCameraPosition);
-      controls.target.copy(savedTarget);
-      controls.update();
+      const view = getResetView();
+      applyView(view.camera, view.target);
+    };
+
+    const saveView = () => {
+      saveStoredCameraView(
+        vectorsToStoredView(
+          { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+          { x: controls.target.x, y: controls.target.y, z: controls.target.z },
+        ),
+      );
     };
 
     const stopAll = () => {
@@ -147,7 +196,7 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
       entry.action.clampWhenFinished = true;
     };
 
-    sceneApiRef.current = { resetView, playClip, playClipByHints, stopAll };
+    sceneApiRef.current = { resetView, saveView, playClip, playClipByHints, stopAll };
 
     const resize = () => {
       const width = container.clientWidth;
@@ -189,12 +238,14 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
         const maxSize = Math.max(size.x, size.y, size.z, 1);
         const fovRad = (camera.fov * Math.PI) / 180;
         const distance = (maxSize * 0.9) / Math.tan(fovRad / 2);
-        camera.position.set(0, size.y * 0.55, distance * 1.2);
+        const autoCam = new THREE.Vector3(0, size.y * 0.55, distance * 1.2);
+        const autoTarget = new THREE.Vector3(0, size.y * 0.5, 0);
         camera.far = distance * 8;
         camera.updateProjectionMatrix();
-        controls.target.set(0, size.y * 0.5, 0);
-        controls.update();
-        saveInitialView();
+        setDefaultView(autoCam, autoTarget);
+
+        const stored = loadStoredCameraView();
+        applyStoredOrVectors(stored, autoCam, autoTarget);
 
         mixer = new THREE.AnimationMixer(vrm.scene);
         for (let i = 0; i < gltf.animations.length; i++) {
@@ -272,6 +323,10 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
     }
   }, [characterState, clipNames]);
 
+  const handleSaveView = useCallback(() => {
+    sceneApiRef.current?.saveView();
+  }, []);
+
   const handleReset = useCallback(() => {
     sceneApiRef.current?.resetView();
   }, []);
@@ -303,6 +358,9 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
         </button>
         {showControls ? (
           <div className="avatar-controls-panel">
+            <button type="button" className="avatar-control-btn" onClick={handleSaveView}>
+              位置保存
+            </button>
             <button type="button" className="avatar-control-btn" onClick={handleReset}>
               位置リセット
             </button>
