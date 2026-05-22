@@ -1,14 +1,46 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader, type GLTFParser } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
+import type { CharacterState } from "@/lib/types";
 
-export function AvatarCanvas() {
+interface AvatarCanvasProps {
+  characterState?: CharacterState;
+}
+
+interface ClipActionEntry {
+  name: string;
+  action: THREE.AnimationAction;
+}
+
+interface SceneApi {
+  resetView: () => void;
+  playClip: (name: string, loop?: boolean) => void;
+  playClipByHints: (hints: string[]) => void;
+  stopAll: () => void;
+}
+
+function pickClipByHints(clips: ClipActionEntry[], hints: string[]): ClipActionEntry | null {
+  const lowerHints = hints.map((h) => h.toLowerCase());
+  for (const hint of lowerHints) {
+    const found = clips.find((c) => c.name.toLowerCase().includes(hint));
+    if (found) {
+      return found;
+    }
+  }
+  return clips[0] ?? null;
+}
+
+export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
   const [modelReady, setModelReady] = useState<boolean | null>(null);
+  const [showControls, setShowControls] = useState(false);
+  const [clipNames, setClipNames] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const sceneApiRef = useRef<SceneApi | null>(null);
+  const prevCharacterStateRef = useRef<CharacterState>("idle");
 
   useEffect(() => {
     let active = true;
@@ -28,15 +60,6 @@ export function AvatarCanvas() {
       active = false;
     };
   }, []);
-
-  if (modelReady === false) {
-    return (
-      <div className="vrm-wrapper vrm-fallback">
-        <p>VRMモデルが見つかりません。</p>
-        <p>`public/avatar.vrm` を配置してページを再読み込みしてください。</p>
-      </div>
-    );
-  }
 
   useEffect(() => {
     if (!modelReady) {
@@ -71,7 +94,60 @@ export function AvatarCanvas() {
 
     let disposed = false;
     let vrm: VRM | null = null;
+    let mixer: THREE.AnimationMixer | null = null;
+    const clipActions: ClipActionEntry[] = [];
     const clock = new THREE.Clock();
+
+    let savedCameraPosition = new THREE.Vector3();
+    let savedTarget = new THREE.Vector3();
+
+    const saveInitialView = () => {
+      savedCameraPosition = camera.position.clone();
+      savedTarget = controls.target.clone();
+    };
+
+    const resetView = () => {
+      camera.position.copy(savedCameraPosition);
+      controls.target.copy(savedTarget);
+      controls.update();
+    };
+
+    const stopAll = () => {
+      if (!mixer) {
+        return;
+      }
+      for (const { action } of clipActions) {
+        action.stop();
+      }
+      mixer.stopAllAction();
+    };
+
+    const playClip = (name: string, loop = false) => {
+      const entry = clipActions.find((c) => c.name === name);
+      if (!entry || !mixer) {
+        return;
+      }
+      stopAll();
+      if (loop) {
+        entry.action.setLoop(THREE.LoopRepeat, Infinity);
+      } else {
+        entry.action.setLoop(THREE.LoopOnce, 1);
+        entry.action.clampWhenFinished = true;
+      }
+      entry.action.reset().fadeIn(0.2).play();
+    };
+
+    const playClipByHints = (hints: string[]) => {
+      const entry = pickClipByHints(clipActions, hints);
+      if (!entry) {
+        return;
+      }
+      stopAll();
+      entry.action.reset().fadeIn(0.2).setLoop(THREE.LoopOnce, 1).play();
+      entry.action.clampWhenFinished = true;
+    };
+
+    sceneApiRef.current = { resetView, playClip, playClipByHints, stopAll };
 
     const resize = () => {
       const width = container.clientWidth;
@@ -118,6 +194,23 @@ export function AvatarCanvas() {
         camera.updateProjectionMatrix();
         controls.target.set(0, size.y * 0.5, 0);
         controls.update();
+        saveInitialView();
+
+        mixer = new THREE.AnimationMixer(vrm.scene);
+        for (let i = 0; i < gltf.animations.length; i++) {
+          const clip = gltf.animations[i];
+          const name = clip.name || `animation_${i}`;
+          const action = mixer.clipAction(clip);
+          clipActions.push({ name, action });
+        }
+
+        const names = clipActions.map((c) => c.name);
+        setClipNames(names);
+
+        const idleEntry = pickClipByHints(clipActions, ["idle"]);
+        if (idleEntry) {
+          idleEntry.action.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat, Infinity).play();
+        }
       },
       undefined,
       () => {
@@ -135,6 +228,7 @@ export function AvatarCanvas() {
         return;
       }
       const delta = clock.getDelta();
+      mixer?.update(delta);
       vrm?.update(delta);
       controls.update();
       renderer.render(scene, camera);
@@ -144,6 +238,7 @@ export function AvatarCanvas() {
 
     return () => {
       disposed = true;
+      sceneApiRef.current = null;
       window.removeEventListener("resize", onResize);
       controls.dispose();
       renderer.dispose();
@@ -151,12 +246,83 @@ export function AvatarCanvas() {
       if (container.contains(renderer.domElement)) {
         container.removeChild(renderer.domElement);
       }
+      setClipNames([]);
     };
   }, [modelReady]);
 
+  useEffect(() => {
+    const api = sceneApiRef.current;
+    if (!api) {
+      return;
+    }
+
+    if (characterState === "notify") {
+      api.playClipByHints(["notify", "start"]);
+      prevCharacterStateRef.current = characterState;
+    } else if (characterState === "talk") {
+      api.playClipByHints(["talk", "end"]);
+      prevCharacterStateRef.current = characterState;
+    } else if (characterState === "idle" && prevCharacterStateRef.current !== "idle") {
+      api.stopAll();
+      const idle = clipNames.find((n) => n.toLowerCase().includes("idle"));
+      if (idle) {
+        api.playClip(idle, true);
+      }
+      prevCharacterStateRef.current = characterState;
+    }
+  }, [characterState, clipNames]);
+
+  const handleReset = useCallback(() => {
+    sceneApiRef.current?.resetView();
+  }, []);
+
+  const handlePlayClip = useCallback((name: string) => {
+    sceneApiRef.current?.playClip(name);
+  }, []);
+
+  if (modelReady === false) {
+    return (
+      <div className="vrm-wrapper vrm-fallback">
+        <p>VRMモデルが見つかりません。</p>
+        <p>`public/avatar.vrm` を配置してページを再読み込みしてください。</p>
+      </div>
+    );
+  }
+
   return (
     <div className="vrm-wrapper">
-      <div className="vrm-overlay">ドラッグ: 回転 / 右ドラッグ: パン / ホイール: ズーム</div>
+      <div className="avatar-controls">
+        <button
+          type="button"
+          className="avatar-controls-toggle"
+          onClick={() => setShowControls((v) => !v)}
+          aria-expanded={showControls}
+          aria-label="操作パネルを表示"
+        >
+          {showControls ? "▼" : "▶"}
+        </button>
+        {showControls ? (
+          <div className="avatar-controls-panel">
+            <button type="button" className="avatar-control-btn" onClick={handleReset}>
+              位置リセット
+            </button>
+            {clipNames.length === 0 ? (
+              <span className="avatar-controls-empty">アニメーションなし</span>
+            ) : (
+              clipNames.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  className="avatar-control-btn"
+                  onClick={() => handlePlayClip(name)}
+                >
+                  {name}
+                </button>
+              ))
+            )}
+          </div>
+        ) : null}
+      </div>
       <div ref={containerRef} className="vrm-canvas-host" />
     </div>
   );

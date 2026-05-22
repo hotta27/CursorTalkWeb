@@ -42,3 +42,69 @@ export function classifySchedule(
   }
   return "upcoming";
 }
+
+export function findNearestByStart(
+  items: ScheduleItem[],
+  now: Date = new Date(),
+): ScheduleItem | null {
+  if (items.length === 0) {
+    return null;
+  }
+  const nowMs = now.getTime();
+  let best: ScheduleItem | null = null;
+  let bestDiff = Infinity;
+
+  for (const item of items) {
+    const diff = Math.abs(new Date(item.startAt).getTime() - nowMs);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = item;
+    } else if (diff === bestDiff && best) {
+      const itemStart = new Date(item.startAt).getTime();
+      const bestStart = new Date(best.startAt).getTime();
+      if (itemStart < bestStart) {
+        best = item;
+      }
+    }
+  }
+
+  return best;
+}
+
+export interface TimelineLaneItem {
+  item: ScheduleItem;
+  lane: number;
+  start: number;
+  end: number;
+  duration: number;
+}
+
+export function assignTimelineLanes(items: ScheduleItem[]): TimelineLaneItem[] {
+  const sorted = [...items].sort(
+    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime(),
+  );
+  const laneEnds: number[] = [];
+  const result: TimelineLaneItem[] = [];
+
+  for (const item of sorted) {
+    const start = clamp(toMinuteOfDay(item.startAt), 0, MINUTES_PER_DAY);
+    const end = clamp(toMinuteOfDay(item.endAt), 0, MINUTES_PER_DAY);
+    const duration = Math.max(1, end - start);
+
+    let lane = 0;
+    for (; lane < laneEnds.length; lane++) {
+      if (laneEnds[lane] <= start) {
+        break;
+      }
+    }
+    if (lane === laneEnds.length) {
+      laneEnds.push(end);
+    } else {
+      laneEnds[lane] = end;
+    }
+
+    result.push({ item, lane, start, end, duration });
+  }
+
+  return result;
+}

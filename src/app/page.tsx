@@ -13,59 +13,75 @@ export default function Home() {
 
   return (
     <main className="page-root">
-      <section className="left-panel">
-        <header className="toolbar">
+      <div className="vrm-layer">
+        <AvatarCanvas characterState={state} />
+      </div>
+
+      <div className="ui-overlay">
+        <header className="toolbar toolbar-compact">
           <h1>NotificationAI</h1>
-          <div className="toolbar-actions">
-            <button
-              type="button"
-              className="button"
-              onClick={() => {
-                void ensurePermission();
-              }}
-            >
-              通知を許可
-            </button>
-            <button
-              type="button"
-              className="button button-primary"
-              onClick={() => {
-                void refresh();
-              }}
-            >
-              更新
-            </button>
+          <div className="toolbar-right">
+            <span className="status-chip">state: {state}</span>
+            <span className="status-chip">notification: {permission}</span>
+            <div className="toolbar-actions">
+              <button
+                type="button"
+                className="button"
+                onClick={() => {
+                  void ensurePermission();
+                }}
+              >
+                通知を許可
+              </button>
+              <button
+                type="button"
+                className="button button-primary"
+                onClick={() => {
+                  void refresh();
+                }}
+              >
+                更新
+              </button>
+            </div>
           </div>
         </header>
 
-        <div className="status-row">
-          <span>state: {state}</span>
-          <span>notification: {permission}</span>
-        </div>
-        {permission !== "granted" ? (
-          <div className="error-box">通知を有効にするには「通知を許可」をクリックしてください。</div>
-        ) : null}
+        {(permission !== "granted" || error) && (
+          <div className="banner-row">
+            {permission !== "granted" ? (
+              <div className="error-box error-box-inline">
+                通知を有効にするには「通知を許可」をクリックしてください。
+              </div>
+            ) : null}
+            {error ? <div className="error-box error-box-inline">{error}</div> : null}
+          </div>
+        )}
 
-        {error && <div className="error-box">{error}</div>}
-        {loading ? <div className="timeline-empty">読み込み中...</div> : <Timeline items={items} />}
+        <div className="ui-overlay-spacer" aria-hidden="true" />
 
-        <div className="event-panel">
-          <h2>通知ログ (フォールバック)</h2>
-          {events.length === 0 ? (
-            <div className="timeline-empty">通知イベントはまだありません</div>
-          ) : (
-            <ul>
-              {events.map((event, index) => (
-                <li key={`${event}-${index}`}>{event}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
+        <section className="schedule-section">
+          <div className="schedule-panel">
+            {loading ? (
+              <div className="timeline-empty">読み込み中...</div>
+            ) : (
+              <Timeline items={items} />
+            )}
+          </div>
 
-      <section className="right-panel">
-        <AvatarCanvas />
-      </section>
+          <details className="event-panel">
+            <summary>通知ログ (フォールバック)</summary>
+            {events.length === 0 ? (
+              <div className="timeline-empty timeline-empty-compact">通知イベントはまだありません</div>
+            ) : (
+              <ul>
+                {events.map((event, index) => (
+                  <li key={`${event}-${index}`}>{event}</li>
+                ))}
+              </ul>
+            )}
+          </details>
+        </section>
+      </div>
     </main>
   );
 }
