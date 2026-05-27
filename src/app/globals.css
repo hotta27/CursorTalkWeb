@@ -125,9 +125,49 @@ body {
   margin: 0;
 }
 
+.switchbot-panel {
+  flex-shrink: 0;
+  border: 1px solid rgba(51, 65, 85, 0.9);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(11, 18, 32, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.switchbot-header {
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+
+.switchbot-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.switchbot-button {
+  background: rgba(34, 197, 94, 0.18);
+  border-color: rgba(74, 222, 128, 0.55);
+}
+
+.switchbot-button:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.32);
+}
+
+.switchbot-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.switchbot-error {
+  margin-top: 8px;
+}
+
 .schedule-section {
   flex: 0 0 auto;
-  max-height: 36vh;
+  max-height: 42vh;
   min-height: 160px;
   padding: 0 16px 12px;
   display: flex;
@@ -290,8 +330,7 @@ body {
 }
 
 .avatar-controls-toggle {
-  width: 32px;
-  height: 32px;
+  min-width: 160px;
   border: 1px solid #334155;
   background: rgba(15, 23, 42, 0.85);
   color: #e2e8f0;
@@ -300,7 +339,9 @@ body {
   font-size: 12px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
   backdrop-filter: blur(4px);
 }
 
@@ -313,6 +354,33 @@ body {
   flex-direction: column;
   gap: 6px;
   align-items: stretch;
+  max-height: min(50vh, 320px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #475569 transparent;
+}
+
+.avatar-controls-panel-wide {
+  width: min(460px, calc(100vw - 24px));
+}
+
+.avatar-controls-panel.is-hovered {
+  scrollbar-color: #64748b transparent;
+}
+
+.avatar-controls-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+.avatar-controls-panel::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 3px;
+}
+
+.avatar-controls-panel.is-hovered::-webkit-scrollbar-thumb {
+  background: #64748b;
 }
 
 .avatar-control-btn {
@@ -343,6 +411,12 @@ body {
   border: 1px dashed #334155;
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.72);
+}
+
+.avatar-controls-hint {
+  border-style: solid;
+  border-color: rgba(147, 197, 253, 0.35);
+  text-align: center;
 }
 
 .vrm-fallback {

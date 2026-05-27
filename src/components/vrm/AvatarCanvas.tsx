@@ -6,6 +6,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { GLTFLoader, type GLTFParser } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { VRM, VRMLoaderPlugin } from "@pixiv/three-vrm";
 import type { CharacterState } from "@/lib/types";
+import { SwitchBotControls } from "@/components/switchbot/SwitchBotControls";
 import {
   loadStoredCameraView,
   saveStoredCameraView,
@@ -17,9 +18,42 @@ interface AvatarCanvasProps {
   characterState?: CharacterState;
 }
 
-interface ClipActionEntry {
-  name: string;
-  action: THREE.AnimationAction;
+type PlayableEntry =
+  | { kind: "clip"; name: string; action: THREE.AnimationAction }
+  | { kind: "expression"; name: string };
+
+function getExpressionNames(vrm: VRM): string[] {
+  const manager = vrm.expressionManager;
+  if (!manager) {
+    return [];
+  }
+  const names: string[] = [];
+  manager.expressions.forEach((expression) => {
+    names.push(expression.expressionName);
+  });
+  return names;
+}
+
+function applyExpression(vrm: VRM, name: string, weight = 1): void {
+  const manager = vrm.expressionManager;
+  if (!manager) {
+    return;
+  }
+  for (const expression of manager.expressions.values()) {
+    const id = expression.expressionName;
+    manager.setValue(id, id === name ? weight : 0);
+  }
+}
+
+function resetExpressions(vrm: VRM): void {
+  const manager = vrm.expressionManager;
+  if (!manager) {
+    return;
+  }
+  for (const expression of manager.expressions.values()) {
+    const id = expression.expressionName;
+    manager.setValue(id, id === "neutral" ? 1 : 0);
+  }
 }
 
 interface SceneApi {
@@ -30,22 +64,26 @@ interface SceneApi {
   stopAll: () => void;
 }
 
-function pickClipByHints(clips: ClipActionEntry[], hints: string[]): ClipActionEntry | null {
+function pickPlayableByHints(playables: PlayableEntry[], hints: string[]): PlayableEntry | null {
   const lowerHints = hints.map((h) => h.toLowerCase());
   for (const hint of lowerHints) {
-    const found = clips.find((c) => c.name.toLowerCase().includes(hint));
+    const found = playables.find((c) => c.name.toLowerCase().includes(hint));
     if (found) {
       return found;
     }
   }
-  return clips[0] ?? null;
+  return playables[0] ?? null;
 }
 
 export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
   const [modelReady, setModelReady] = useState<boolean | null>(null);
-  const [showControls, setShowControls] = useState(false);
+  const [showModelControls, setShowModelControls] = useState(false);
+  const [showSwitchBotControls, setShowSwitchBotControls] = useState(false);
   const [clipNames, setClipNames] = useState<string[]>([]);
+  const [playableKind, setPlayableKind] = useState<"clip" | "expression" | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const controlsPanelRef = useRef<HTMLDivElement | null>(null);
+  const [controlsPanelHovered, setControlsPanelHovered] = useState(false);
   const sceneApiRef = useRef<SceneApi | null>(null);
   const prevCharacterStateRef = useRef<CharacterState>("idle");
 
@@ -102,7 +140,7 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
     let disposed = false;
     let vrm: VRM | null = null;
     let mixer: THREE.AnimationMixer | null = null;
-    const clipActions: ClipActionEntry[] = [];
+    const playables: PlayableEntry[] = [];
     const clock = new THREE.Clock();
 
     let defaultCameraPosition = new THREE.Vector3();
@@ -162,18 +200,31 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
     };
 
     const stopAll = () => {
-      if (!mixer) {
-        return;
+      if (mixer) {
+        for (const entry of playables) {
+          if (entry.kind === "clip") {
+            entry.action.stop();
+          }
+        }
+        mixer.stopAllAction();
       }
-      for (const { action } of clipActions) {
-        action.stop();
+      if (vrm) {
+        resetExpressions(vrm);
       }
-      mixer.stopAllAction();
     };
 
     const playClip = (name: string, loop = false) => {
-      const entry = clipActions.find((c) => c.name === name);
-      if (!entry || !mixer) {
+      const entry = playables.find((c) => c.name === name);
+      if (!entry) {
+        return;
+      }
+      if (entry.kind === "expression") {
+        if (vrm) {
+          applyExpression(vrm, entry.name);
+        }
+        return;
+      }
+      if (!mixer) {
         return;
       }
       stopAll();
@@ -187,8 +238,17 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
     };
 
     const playClipByHints = (hints: string[]) => {
-      const entry = pickClipByHints(clipActions, hints);
+      const entry = pickPlayableByHints(playables, hints);
       if (!entry) {
+        return;
+      }
+      if (entry.kind === "expression") {
+        if (vrm) {
+          applyExpression(vrm, entry.name);
+        }
+        return;
+      }
+      if (!mixer) {
         return;
       }
       stopAll();
@@ -247,21 +307,45 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
         const stored = loadStoredCameraView();
         applyStoredOrVectors(stored, autoCam, autoTarget);
 
-        mixer = new THREE.AnimationMixer(vrm.scene);
-        for (let i = 0; i < gltf.animations.length; i++) {
-          const clip = gltf.animations[i];
-          const name = clip.name || `animation_${i}`;
-          const action = mixer.clipAction(clip);
-          clipActions.push({ name, action });
+        if (process.env.NODE_ENV === "development") {
+          console.info(
+            "[AvatarCanvas] gltf.animations:",
+            gltf.animations.length,
+            gltf.animations.map((a) => a.name),
+          );
         }
 
-        const names = clipActions.map((c) => c.name);
-        setClipNames(names);
+        if (gltf.animations.length > 0) {
+          mixer = new THREE.AnimationMixer(vrm.scene);
+          for (let i = 0; i < gltf.animations.length; i++) {
+            const clip = gltf.animations[i];
+            const name = clip.name || `animation_${i}`;
+            const action = mixer.clipAction(clip);
+            playables.push({ kind: "clip", name, action });
+          }
+          setPlayableKind("clip");
 
-        const idleEntry = pickClipByHints(clipActions, ["idle"]);
-        if (idleEntry) {
-          idleEntry.action.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat, Infinity).play();
+          const idleEntry = pickPlayableByHints(playables, ["idle"]);
+          if (idleEntry?.kind === "clip") {
+            idleEntry.action.reset().fadeIn(0.2).setLoop(THREE.LoopRepeat, Infinity).play();
+          }
+        } else {
+          const expressionNames = getExpressionNames(vrm);
+          if (process.env.NODE_ENV === "development") {
+            console.info(
+              "[AvatarCanvas] No skeletal clips in .vrm; expressions:",
+              expressionNames.length,
+              expressionNames,
+            );
+          }
+          for (const name of expressionNames) {
+            playables.push({ kind: "expression", name });
+          }
+          setPlayableKind(expressionNames.length > 0 ? "expression" : null);
+          resetExpressions(vrm);
         }
+
+        setClipNames(playables.map((c) => c.name));
       },
       undefined,
       () => {
@@ -298,6 +382,7 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
         container.removeChild(renderer.domElement);
       }
       setClipNames([]);
+      setPlayableKind(null);
     };
   }, [modelReady]);
 
@@ -308,16 +393,19 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
     }
 
     if (characterState === "notify") {
-      api.playClipByHints(["notify", "start"]);
+      api.playClipByHints(["notify", "start", "fun", "joy"]);
       prevCharacterStateRef.current = characterState;
     } else if (characterState === "talk") {
-      api.playClipByHints(["talk", "end"]);
+      api.playClipByHints(["talk", "end", "fun"]);
       prevCharacterStateRef.current = characterState;
     } else if (characterState === "idle" && prevCharacterStateRef.current !== "idle") {
       api.stopAll();
       const idle = clipNames.find((n) => n.toLowerCase().includes("idle"));
+      const neutral = clipNames.find((n) => n.toLowerCase() === "neutral");
       if (idle) {
         api.playClip(idle, true);
+      } else if (neutral) {
+        api.playClip(neutral);
       }
       prevCharacterStateRef.current = characterState;
     }
@@ -335,6 +423,22 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
     sceneApiRef.current?.playClip(name);
   }, []);
 
+  const handleControlsPanelWheel = useCallback(
+    (event: React.WheelEvent<HTMLDivElement>) => {
+      if (!controlsPanelHovered) {
+        return;
+      }
+      const panel = controlsPanelRef.current;
+      if (!panel || panel.scrollHeight <= panel.clientHeight) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+      panel.scrollTop += event.deltaY;
+    },
+    [controlsPanelHovered],
+  );
+
   if (modelReady === false) {
     return (
       <div className="vrm-wrapper vrm-fallback">
@@ -350,14 +454,21 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
         <button
           type="button"
           className="avatar-controls-toggle"
-          onClick={() => setShowControls((v) => !v)}
-          aria-expanded={showControls}
-          aria-label="操作パネルを表示"
+          onClick={() => setShowModelControls((v) => !v)}
+          aria-expanded={showModelControls}
+          aria-label="3D model 操作パネルを表示"
         >
-          {showControls ? "▼" : "▶"}
+          <span>3D model</span>
+          <span>{showModelControls ? "▼" : "▶"}</span>
         </button>
-        {showControls ? (
-          <div className="avatar-controls-panel">
+        {showModelControls ? (
+          <div
+            ref={controlsPanelRef}
+            className={`avatar-controls-panel${controlsPanelHovered ? " is-hovered" : ""}`}
+            onMouseEnter={() => setControlsPanelHovered(true)}
+            onMouseLeave={() => setControlsPanelHovered(false)}
+            onWheel={handleControlsPanelWheel}
+          >
             <button type="button" className="avatar-control-btn" onClick={handleSaveView}>
               位置保存
             </button>
@@ -365,9 +476,15 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
               位置リセット
             </button>
             {clipNames.length === 0 ? (
-              <span className="avatar-controls-empty">アニメーションなし</span>
+              <span className="avatar-controls-empty">
+                骨格アニメなし（.vrma は未対応）
+              </span>
             ) : (
-              clipNames.map((name) => (
+              <>
+                {playableKind === "expression" ? (
+                  <span className="avatar-controls-empty avatar-controls-hint">表情（VRM内蔵）</span>
+                ) : null}
+                {clipNames.map((name) => (
                 <button
                   key={name}
                   type="button"
@@ -376,8 +493,24 @@ export function AvatarCanvas({ characterState = "idle" }: AvatarCanvasProps) {
                 >
                   {name}
                 </button>
-              ))
+              ))}
+              </>
             )}
+          </div>
+        ) : null}
+        <button
+          type="button"
+          className="avatar-controls-toggle"
+          onClick={() => setShowSwitchBotControls((v) => !v)}
+          aria-expanded={showSwitchBotControls}
+          aria-label="swich bot 操作パネルを表示"
+        >
+          <span>swich bot</span>
+          <span>{showSwitchBotControls ? "▼" : "▶"}</span>
+        </button>
+        {showSwitchBotControls ? (
+          <div className="avatar-controls-panel avatar-controls-panel-wide">
+            <SwitchBotControls />
           </div>
         ) : null}
       </div>

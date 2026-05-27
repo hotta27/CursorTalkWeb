@@ -9,6 +9,7 @@ Notionの当日予定を表示し、開始・終了時にWindows通知を行うN
 - Tailwind CSS
 - Three.js + `@pixiv/three-vrm` + `@react-three/fiber`
 - Notion API
+- SwitchBot Open API (任意)
 
 ## 必要なもの
 
@@ -20,7 +21,7 @@ Notionの当日予定を表示し、開始・終了時にWindows通知を行うN
 ## セットアップ
 
 1. `.env.example` を `.env` にコピー
-2. `.env` に `NOTION_API_KEY` / `NOTION_DATABASE_ID` を設定
+2. `.env` に `NOTION_API_KEY` / `NOTION_DATABASE_ID` を設定（SwitchBot を使う場合は下記も設定）
 3. 依存導入
    - `npm install`
 4. 開発起動
@@ -106,6 +107,23 @@ schtasks /Run /TN "NotificationAI npm run dev"
 
 その後、ブラウザで `http://localhost:3000` を開いて応答を確認してください。
 
+## SwitchBot 連携 (任意)
+
+SwitchBot アプリで Open Token / Secret Key を取得し、`.env` に設定します。
+
+1. SwitchBot アプリ → **プロフィール → 設定 → 開発者向けオプション → トークン取得**
+2. `.env` に `SWITCHBOT_TOKEN` / `SWITCHBOT_SECRET` を設定
+3. アプリが `/api/switchbot/devices` から機器一覧を取得し、対応コマンドを自動でボタン化
+
+デバイス ID の確認（開発サーバー起動中）:
+
+```bash
+curl http://localhost:3000/api/switchbot/devices
+```
+
+画面下部のタイムライン上に SwitchBot パネルが表示され、ボタン押下で機器を操作できます。
+未対応の機種はボタンが表示されないため、必要ならコマンドマッピングを追加してください。
+
 ## Notion DBプロパティ
 
 - `名前` (Title)
@@ -123,3 +141,4 @@ schtasks /Run /TN "NotificationAI npm run dev"
 - 開始・終了時のトースト通知
 - 通知に連動したVRM状態変化 (`idle`, `notify`, `talk`)
 - 通知が拒否されている場合はアプリ内表示でフォールバック
+- SwitchBot ボタンから連携機器を操作（`.env` 設定時）
