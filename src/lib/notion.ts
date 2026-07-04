@@ -6,6 +6,16 @@ const notionToken = process.env.NOTION_API_KEY ?? "";
 const notionDatabaseId = process.env.NOTION_DATABASE_ID ?? "";
 const notion = notionToken ? new Client({ auth: notionToken }) : null;
 
+export class ScheduleFetchThrottledError extends Error {
+  constructor() {
+    super("前回の取得から10秒以内のため取得をスキップしました。");
+    this.name = "ScheduleFetchThrottledError";
+  }
+}
+
+const MIN_FETCH_INTERVAL_MS = 10_000;
+let lastFetchAt = 0;
+
 function readTitle(page: PageObjectResponse): string {
   const raw = page.properties["名前"];
   if (!raw || raw.type !== "title") {
@@ -34,6 +44,11 @@ export async function fetchTodaySchedules(): Promise<ScheduleItem[]> {
   if (!notion || !notionDatabaseId) {
     throw new Error("NOTION_API_KEY または NOTION_DATABASE_ID が設定されていません。");
   }
+
+  if (Date.now() - lastFetchAt < MIN_FETCH_INTERVAL_MS) {
+    throw new ScheduleFetchThrottledError();
+  }
+  lastFetchAt = Date.now();
 
   const response = await notion.databases.query({
     database_id: notionDatabaseId,
