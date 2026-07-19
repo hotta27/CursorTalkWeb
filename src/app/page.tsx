@@ -2,6 +2,7 @@
 
 import { AvatarCanvas } from "@/components/vrm/AvatarCanvas";
 import { Timeline } from "@/components/schedule/Timeline";
+import { ChatPanel } from "@/components/chat/ChatPanel";
 import { useCharacterState } from "@/hooks/useCharacterState";
 import { useSchedules } from "@/hooks/useSchedules";
 import { useWindowsNotifications } from "@/hooks/useWindowsNotifications";
@@ -18,6 +19,7 @@ export default function Home() {
       </div>
 
       <div className="ui-overlay">
+        <div className="ui-main-column">
         <header className="toolbar toolbar-compact">
           <h1>NotificationAI</h1>
           <div className="toolbar-right">
@@ -81,6 +83,9 @@ export default function Home() {
             )}
           </details>
         </section>
+        </div>
+
+        <ChatPanel />
       </div>
     </main>
   );
