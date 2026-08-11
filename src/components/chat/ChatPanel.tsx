@@ -74,11 +74,11 @@ export function ChatPanel() {
           ref={textareaRef}
           className="chat-input"
           rows={2}
-          placeholder="メッセージを入力... (Enterで送信 / Shift+Enterで改行)"
+          placeholder="メッセージを入力... (Enterで改行 / Ctrl+Enterで送信)"
           value={input}
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey) {
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
               event.preventDefault();
               submit();
             }
