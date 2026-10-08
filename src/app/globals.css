@@ -423,11 +423,20 @@ body {
 .chat-markdown ul,
 .chat-markdown ol {
   margin: 0 0 8px;
-  padding-left: 20px;
+  padding-left: 1.25em;
+}
+
+.chat-markdown ul {
+  list-style-type: disc;
+}
+
+.chat-markdown ol {
+  list-style-type: decimal;
 }
 
 .chat-markdown li {
   margin: 2px 0;
+  display: list-item;
 }
 
 .chat-markdown h1,
